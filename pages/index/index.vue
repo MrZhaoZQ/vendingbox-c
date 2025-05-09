@@ -58,6 +58,93 @@
 				<view class="btn" @click="gotItFn">我知道了</view>
 			</view>
 		</view>
+		
+		<!-- 非“先买后付”的购买页面：货柜信息 & 商品列表 & 购物车 -->
+		<view v-show="unBNPLpage" class="un-BNPL-page">
+			<!-- 顶部 -->
+			<view class="header">
+				<view class="mach-name">设备名称</view>
+				<view class="notice">公告：如有疑问可点击 订单--查看详情--联系商家～</view>
+				<view class="mach-info">设备地址设备地址（AB9XI）</view>
+			</view>
+			<!-- 商品列表 -->
+			<view class="main">
+				<scroll-view class="category-list" scroll-y>
+					<view
+						v-for="(item, index) in list"
+						:key="index"
+						:class="['category', currCateIdx == index ? 'active' : '']"
+						@click="tapCategoryFn(item.cateId, index)">
+						<text>{{ item.title }}</text>
+					</view>
+					<view class="placeholder"></view>
+				</scroll-view>
+				<scroll-view
+					class="goods-list"
+					scroll-y
+					scroll-with-animation
+					:scroll-into-view="scrollTo"
+					@scroll="scrollFn"
+				>
+					<block v-for="(item, index) in list" :key="index">
+						<view class="category" :id="'cateId' + item.cateId">{{ item.title }}</view>
+						<view class="goods" v-for="(goods, idx) in item.list" :key="idx" @click="toDetailFn(goods.stock, goods.id)">
+							<image class="goods-img" lazy-load :src="goods.img"></image>
+							<view class="goods-info">
+								<view class="name">{{ goods.name }}</view>
+								<view class="price-btns">
+									<view class="price">￥{{ goods.price }}</view>
+									<view class="btns" :style="{display: goods.stock > 0 ? 'flex' : 'none'}">
+										<view v-show="goods.num >= 1" class="sub" @click.stop="addOrSubOnMenuFn(index, idx, 0)">-</view>
+										<view v-show="goods.num >= 1">{{ goods.num }}</view>
+										<view class="add" @click.stop="addOrSubOnMenuFn(index, idx, 1)">+</view>
+									</view>
+									<view v-show="goods.stock < 1" class="sold-out">售罄</view>
+								</view>
+							</view>
+						</view>
+					</block>
+					<view class="placeholder"></view>
+				</scroll-view>
+			</view>
+			<!-- 购物车 -->
+			<uni-popup ref="cartListPopup" type="bottom" :safe-area="false">
+				<view class="cart-list-popup">
+					<view class="cart-head">
+						<view class="added">已选商品<text>（共x件）</text></view>
+						<view class="delAll">清空购物车</view>
+					</view>
+					<scroll-view class="cart-list" scroll-y>
+						<view
+							v-for="item in cartList"
+							:key="item.id"
+							class="cart-item"
+						>
+							<view class="goods">
+								<view>{{item.name}}</view>
+								<view class="goods-price">{{item.price}}</view>
+							</view>
+							<view class="goods-num">
+								<uni-number-box v-model="item.num"></uni-number-box>
+							</view>
+						</view>
+					</scroll-view>
+				</view>
+			</uni-popup>
+			
+			<!-- 底部 -->
+			<view class="footer">
+				<view class="total" @click="switchCartFn">
+					<view class="cart">
+						<uni-icons type="cart" size="30" color="#e27b26"></uni-icons>
+						<view class="cart-num">1</view>
+					</view>
+					<view class="line"></view>
+					<view class="acount">请选择商品</view>
+				</view>
+				<view class="pay">支付</view>
+			</view>
+		</view>
 	</view>
 </template>
 
@@ -68,15 +155,50 @@
 	import { getQueryStr } from '@/utils/tools.js';
 	import { wxLogin, getUserInfo } from '@/api/user.js';
 	import { createWxScoreOrder, openDoor } from '@/api/order.js';
+	const BNPL = false; // 先买后付：buy now, pay later
 	const showScanCode = ref(false);
 	const showAuthPhone = ref(false);
 	const showPrivacy = ref(false);
 	const openDoorPopup = ref('');
 	const showNotPass = ref(false);
+	const unBNPLpage = ref(false);
+	const cartListPopup = ref('');
+	const list = ref([
+		{cateId: 1, title: '分类一', list: [
+			{id: 1, name: '测试商品1', price: 0.01, num: 0},
+			{id: 2, name: '测试商品2', price: 0.01, num: 0}
+		]},
+		{cateId: 2, title: '分类二', list: [
+			{id: 3, name: '测试商品3', price: 0.01, num: 0},
+			{id: 4, name: '测试商品4', price: 0.01, num: 0},
+			{id: 5, name: '测试商品5', price: 0.01, num: 0},
+			{id: 6, name: '测试商品6', price: 0.01, num: 0},
+			{id: 7, name: '测试商品7', price: 0.01, num: 0},
+			{id: 8, name: '测试商品8', price: 0.01, num: 0}
+		]},
+		{cateId: 3, title: '分类三', list: [
+			{id: 9, name: '测试商品9', price: 0.01, num: 0},
+			{id: 10, name: '测试商品10', price: 0.01, num: 0}
+		]}
+	]);
+	const currCateIdx = ref(0);
+	const scrollTo = ref('cateId3');
+	const cartList = ref([
+		{id: 5, name: '测试商品5', price: 0.01, num: 1}
+	]);
 	let pageShowTimes = 0;
+	// 根据是否“先买后付”展示对应界面
+	const showByBNPL = () => {
+		// 判断是否“先买后付”
+		if (BNPL) {
+			openDoorPopup.value.open();
+		} else {
+			unBNPLpage.value = true;
+		}
+	}
 	// 监听“同意”隐私协议、授权手机号事件
 	const agreeFn = () => {
-		openDoorPopup.value.open();
+		showByBNPL();
 	};
 	// 开门
 	const openDoorFn = (orderId) => {
@@ -204,7 +326,7 @@
 		getUserInfo().then(res => {
 			// 判断是否已授权手机号
 			if (res?.phone) {
-				openDoorPopup.value.open();
+				showByBNPL();
 			} else {
 				showAuthPhone.value = true;
 			}
@@ -237,7 +359,7 @@
 							showAuthPhone.value = false;
 							// 判断是否有柜码
 							if (getApp().globalData.machId) {
-								openDoorPopup.value.open();
+								showByBNPL();
 							} else {
 								showScanCode.value = true;
 							}
@@ -269,6 +391,257 @@
 			}
 		});
 	};
+	// ---------- 非“先买后付（BNPL）” start-----------
+	// 屏幕宽度
+	let winWidth = 0;
+	// 监听滚动，做“防抖节流”处理
+	const scrollFn = e => {
+		// 判断是否已获取到屏幕宽度
+		if (winWidth) {
+			let sTop = e.detail.scrollTop,
+				listV = list.value,
+				cateHeight = (80 * winWidth) / 750,
+				goodsHeight = (160 * winWidth) / 750,
+				sumHeight = 0;
+			for (let i in listV) {
+				let len = listV[i].list.length;
+				sumHeight += cateHeight + len * goodsHeight;
+				// console.log(sTop, sumHeight, catNameHeight)
+				if (sTop <= sumHeight - cateHeight) {
+					currCateIdx.value = i;
+					break;
+				}
+			}
+		}
+	};
+	// 点击左侧菜单分类列表
+	const tapCategoryFn = (id, cateIdx) => {
+		scrollTo.value = 'cateId' + id;
+		currCateIdx.value = cateIdx;
+	};
+	// // 去详情页
+	// toDetailFn(stock, id) {
+	// 	if (parseInt(stock) < 1) return false;
+	// 	uni.navigateTo({ url: "./detail?dishId=" + id });
+	// },
+	// // 加减商品（操作菜单列表）catIdx=>菜单一级分类列表索引值; idx=>菜单二级列表索引值; type=>1:加、0:减
+	// addOrSubOnMenuFn(catIdx, idx, type) {
+	// 	let mlist = this.menuList;
+	// 	// 判断是否是添加多规格菜品
+	// 	if (type == 1 && mlist[catIdx].list[idx].spec && mlist[catIdx].list[idx].spec.length > 0) {
+	// 		uni.navigateTo({
+	// 			url: "./detail?dishId=" + mlist[catIdx].list[idx].id,
+	// 		});
+	// 		return false;
+	// 	}
+	// 	// 判断是否是删除多规格菜品
+	// 	if (type == 0 && mlist[catIdx].list[idx].spec && mlist[catIdx].list[idx].spec.length > 0) {
+	// 		uni.showModal({
+	// 			content: this.$t("menu.delMultiTip"),
+	// 			showCancel: false,
+	// 			confirmText: this.$t("common.confirm")
+	// 		});
+	// 		return false;
+	// 	}
+	// 	this.addOrSubFn(type, mlist[catIdx].list[idx].id);
+	// },
+	// // 加减商品
+	// addOrSubFn(type, foodid, specid) {
+	// 	uni.showLoading({ mask: true });
+	// 	let url = type == 1 ? "Mpfoodcart/addFoodCart" : "Mpfoodcart/removeFoodCart";
+	// 	this.$http.Post(url, {
+	// 		...(this.orderparams || uni.getStorageSync('orderparams')),
+	// 		foodid: foodid,
+	// 		specid: specid || ""
+	// 	}).then(res => {
+	// 		uni.hideLoading();
+	// 		// console.log(res)
+	// 		if (res.code == 1) {
+	// 			if (this.menuList.length > 0) this.updateMenuListFn(foodid, type);
+	// 			this.sumOfCart = res.data.total;
+	// 			this.cartList = res.data.data;
+	// 			this.total = this.totalFn(res.data.data);
+	// 		} else {
+	// 			uni.showModal({
+	// 				content: res.msg,
+	// 				showCancel: false,
+	// 				confirmText: this.$t("common.confirm")
+	// 			})
+	// 		}
+	// 	}, err => {
+	// 		uni.hideLoading();
+	// 		uni.showToast({
+	// 			title: err,
+	// 			icon: "none",
+	// 			mask: true
+	// 		});
+	// 	});
+	// },
+	// // 更新菜单列表
+	// updateMenuListFn(dishId, addORsub) {
+	// 	let mlist = this.menuList;
+	// 	for (let i in mlist) {
+	// 		for (let j in mlist[i].list) {
+	// 			if (mlist[i].list[j].id == dishId) {
+	// 				if (addORsub == 1) mlist[i].list[j].num += 1;
+	// 				if (addORsub == 0) mlist[i].list[j].num -= 1;
+	// 			}
+	// 		}
+	// 	}
+	// 	this.menuList = mlist;
+	// },
+	// // 计算总价
+	// totalFn(list) {
+	// 	let t = 0;
+	// 	for (let i in list) {
+	// 		t += Number(list[i].price) * Number(list[i].num);
+	// 	}
+	// 	return t.toFixed(2);
+	// },
+	// // 清空购物车
+	// deleteAllFn() {
+	// 	uni.showModal({
+	// 		content: this.$t("menu.delAllTip"),
+	// 		success: (res) => {
+	// 			if (res.confirm) this.doDeleteAllFn();
+	// 		}
+	// 	})
+	// },
+	// doDeleteAllFn() {
+	// 	uni.showLoading({ mask: true });
+	// 	this.$http.Post("Mpfoodcart/removeAllFoodCart", {
+	// 		...(this.orderparams || uni.getStorageSync('orderparams'))
+	// 	}).then(res => {
+	// 		uni.hideLoading();
+	// 		// console.log(res)
+	// 		if (res.code == 1) {
+	// 			let mlist = this.menuList;
+	// 			for (let i in mlist) {
+	// 				for (let j in mlist[i].list) {
+	// 					mlist[i].list[j].num = 0;
+	// 				}
+	// 			}
+	// 			this.showCart = false;
+	// 			this.menuList = mlist;
+	// 			this.sumOfCart = 0;
+	// 			this.cartList = [];
+	// 			this.total = 0.0;
+	// 		} else {
+	// 			uni.showModal({
+	// 				content: res.msg,
+	// 				showCancel: false,
+	// 				confirmText: this.$t("common.confirm")
+	// 			})
+	// 		}
+	// 	}, err => {
+	// 		uni.hideLoading();
+	// 		uni.showToast({
+	// 			title: err,
+	// 			icon: "none",
+	// 			mask: true
+	// 		});
+	// 	});
+	// },
+	// 展示/隐藏购物车列表
+	let showCartList = false;
+	const switchCartFn = () => {
+		showCartList ? cartListPopup.value.close() : cartListPopup.value.open();
+		showCartList = !showCartList;
+	};
+	// // 去下单
+	// toOrderFn() {
+	// 	uni.navigateTo({ url: "../order/submit" });
+	// 	// 检查是否可下单
+	// 	// uni.showLoading({ mask: true })
+	// 	// this.$http.Post("Mpfoodorder/checkFoodOrderStatus", {}).then(res => {
+	// 	// 	uni.hideLoading()
+	// 	// 	if (res.code == 1) {
+	// 	// 		uni.navigateTo({ url: '../order/submit' })
+	// 	// 	} else {
+	// 	// 		uni.showModal({
+	// 	// 			content: res.msg,
+	// 	// 			showCancel: false,
+	// 	// 			confirmText: this.$t('common.confirm')
+	// 	// 		})
+	// 	// 	}
+	// 	// }, err => {
+	// 	// 	uni.hideLoading()
+	// 	// 	uni.showToast({
+	// 	// 		title: err,
+	// 	// 		icon: 'none',
+	// 	// 		mask: true
+	// 	// 	})
+	// 	// })
+	// },
+	// // 获取菜单列表数据
+	// getMenuListFn() {
+	// 	this.$http.Post("Mpfood/getFoodList", {
+	// 		...(this.orderparams || uni.getStorageSync('orderparams'))
+	// 	}).then(res => {
+	// 		// console.log(res)
+	// 		if (res.code == 1) {
+	// 			this.menuList = res.data.Menu;
+	// 			// 获取购物车列表数据
+	// 			this.getCartListFn();
+	// 		} else {
+	// 			uni.hideLoading();
+	// 			uni.showModal({
+	// 				content: res.msg,
+	// 				showCancel: false,
+	// 				confirmText: this.$t("common.confirm")
+	// 			});
+	// 		}
+	// 	}, err => {
+	// 		uni.hideLoading();
+	// 		uni.showToast({
+	// 			title: err,
+	// 			icon: "none",
+	// 			mask: true
+	// 		});
+	// 	})
+	// },
+	// // 获取购物车列表数据
+	// getCartListFn() {
+	// 	this.$http.Post("Mpfoodcart/getFoodCart", {
+	// 		...(this.orderparams || uni.getStorageSync('orderparams'))
+	// 	}).then(res => {
+	// 		uni.hideLoading();
+	// 		// console.log(res)
+	// 		if (res.code == 1) {
+	// 			this.sumOfCart = res.data.total;
+	// 			this.cartList = res.data.data;
+	// 			this.total = this.totalFn(res.data.data);
+	// 			if (this.sumOfCart == 0) {
+	// 				this.showCart = false
+	// 			} else {
+	// 				// 更新菜单列表已加入购物车的菜品菜品数量
+	// 				for (let i in this.cartList) {
+	// 					for (let j in this.menuList) {
+	// 						for (let k in this.menuList[j].list) {
+	// 							if (this.menuList[j].list[k].id == this.cartList[i].id) {
+	// 								this.menuList[j].list[k].num = this.cartList[i].num
+	// 							}
+	// 						}
+	// 					}
+	// 				}
+	// 			}
+	// 		} else {
+	// 			uni.showModal({
+	// 				content: res.msg,
+	// 				showCancel: false,
+	// 				confirmText: this.$t("common.confirm")
+	// 			})
+	// 		}
+	// 	}, err => {
+	// 		uni.hideLoading();
+	// 		uni.showToast({
+	// 			title: err,
+	// 			icon: "none",
+	// 			mask: true
+	// 		});
+	// 	})
+	// },
+	// ---------- 非“先买后付（BNPL）” end-----------
 	// 监听页面加载
 	onLoad((options) => {
 		// console.log('onLoad: ', options);
@@ -291,6 +664,18 @@
 		} else {
 			mpLogin();
 		}
+		
+		// 获取屏幕宽度，用于非”先买后付“的商品列表的滚动高度计算
+		uni.getSystemInfo({
+			success: sysInfo => {
+				// console.log(sysInfo)
+				// 存储屏幕宽度和高度
+				winWidth = sysInfo.screenWidth
+			},
+			fail: err => {
+				console.log('获取屏幕宽度失败：', err);
+			}
+		});
 	});
 	// 监听页面显示，页面每次出现在屏幕上都触发
 	onShow(() => {
@@ -485,6 +870,189 @@
 				text-align: center;
 				line-height: 80rpx;
 			}
+		}
+	}
+	
+	.un-BNPL-page {
+		width: 100%;
+		box-sizing: border-box;
+		padding-top: 15rpx;
+		background-color: #f6f6f6;
+		.header {
+			width: 690rpx;
+			height: 166rpx;
+			margin: 0 auto 15rpx;
+			background-color: #fff;
+			border-radius: 15rpx;
+			box-sizing: border-box;
+			padding: 10rpx 20rpx;
+			.mach-name {
+				font-size: 36rpx;
+				font-weight: bolder;
+			}
+			.notice {
+				margin: 10rpx 0;
+				color: #686868;
+				font-size: 24rpx;
+			}
+			.mach-info {
+				display: flex;
+				font-size: 26rpx;
+			}
+		}
+		.main {
+			width: 100%;
+			height: calc(100vh - 196rpx);
+			display: flex;
+			.category-list {
+				width: 168rpx;
+				height: 100%;
+				.category {
+					width: 168rpx;
+					height: auto;
+					box-sizing: border-box;
+					padding: 20rpx 10rpx;
+					overflow: hidden;
+					font-weight: bolder;
+					&.active {
+						background-color: #fff;
+						color: #e27b26;
+					}
+				}
+			}
+			.goods-list {
+				width: 582rpx;
+				height: 100%;
+				background-color: #fff;
+				.category {
+					width: 100%;
+					height: 80rpx;
+					box-sizing: border-box;
+					padding: 0 20rpx;
+					line-height: 80rpx;
+					font-weight: bolder;
+				}
+				.goods {
+					width: 100%;
+					height: 160rpx;
+					display: flex;
+					align-items: center;
+					.goods-img {
+						width: 126rpx;
+						height: 126rpx;
+						margin: 0 20rpx;
+					}
+					.goods-info {
+						flex: 1;
+					}
+				}
+			}
+			.placeholder {
+				width: 100%;
+				height: 120rpx;
+			}
+		}
+		.footer {
+			width: 690rpx;
+			height: 80rpx;
+			border-radius: 40rpx;
+			background-color: #010101;
+			overflow-y: hidden;
+			position: fixed;
+			z-index: 999;
+			left: 30rpx;
+			bottom: 20rpx;
+			display: flex;
+			.total {
+				width: 522rpx;
+				display: flex;
+				justify-content: flex-start;
+				align-items: center;
+				color: #e27b26;
+				.cart {
+					width: 110rpx;
+					height: 100%;
+					display: flex;
+					justify-content: center;
+					align-items: center;
+					position: relative;
+					.cart-num {
+						width: auto;
+						padding: 0 10rpx;
+						border-radius: 50%;
+						background-color: #e10d26;
+						color: #fff;
+						font-size: 24rpx;
+						font-weight: bolder;
+						position: absolute;
+						right: 16rpx;
+						top: 0;
+					}
+				}
+				.line {
+					width: 2rpx;
+					height: 36rpx;
+					margin-right: 30rpx;
+					background-color: #f6f6f6;
+				}
+			}
+			.pay {
+				width: 168rpx;
+				background-color: #e27b26;
+				color: #fff;
+				text-align: center;
+				line-height: 80rpx;
+			}
+		}
+	}
+	
+	.cart-list-popup {
+		width: 100%;
+		height: 576rpx;
+		background-color: #fff;
+		.cart-head {
+			width: 100%;
+			height: 76rpx;
+			box-sizing: border-box;
+			padding: 0 20rpx;
+			background-color: #f6f6f6;
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+			.delAll {
+				line-height: 76rpx;
+				color: #e27b26;
+			}
+		}
+		.cart-list {
+			width: 100%;
+			height: 500rpx;
+			box-sizing: border-box;
+			padding: 0 20rpx;
+			.cart-item {
+				width: 100%;
+				height: 110rpx;
+				box-sizing: border-box;
+				border-bottom: 2rpx #f6f6f6 solid;
+				display: flex;
+				justify-content: space-between;
+				align-items: center;
+				.goods {
+					width: 500rpx;
+					.goods-price {
+						font-size: 26rpx;
+						color: #e27b26;
+						font-weight: bolder;
+					}
+				}
+				&:last-child {
+					border-bottom: none;
+				}
+			}
+		}
+		.cart-empty {
+			width: 100%;
+			height: 500rpx;
 		}
 	}
 </style>
