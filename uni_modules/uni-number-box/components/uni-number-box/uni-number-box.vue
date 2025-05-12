@@ -4,7 +4,7 @@
 			<text class="uni-numbox--text" :class="{ 'uni-numbox--disabled': inputValue <= min || disabled }"
 				:style="{color}">-</text>
 		</view>
-		<input :disabled="disabled" @focus="_onFocus" @blur="_onBlur" class="uni-numbox__value"
+		<input :disabled="inputDisabled || disabled" @focus="_onFocus" @blur="_onBlur" class="uni-numbox__value"
 			:type="step<1?'digit':'number'" v-model="inputValue" :style="{background, color, width:widthWithPx}" />
 		<view @click="_calcValue('plus')" class="uni-numbox__plus uni-numbox-btns" :style="{background}">
 			<text class="uni-numbox--text" :class="{ 'uni-numbox--disabled': inputValue >= max || disabled }"
@@ -73,6 +73,7 @@
 		},
 		data() {
 			return {
+				inputDisabled: true, // 输入框是否可用
 				inputValue: 0
 			};
 		},
