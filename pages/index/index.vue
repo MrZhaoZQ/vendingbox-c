@@ -63,9 +63,9 @@
 		<view v-show="unBNPLpage" class="un-BNPL-page">
 			<!-- 顶部 -->
 			<view class="header">
-				<view class="mach-name">设备名称</view>
+				<view class="mach-name">{{machInfo.name}}</view>
 				<view class="notice">公告：如有疑问可点击 订单--查看详情--联系商家～</view>
-				<view class="mach-info">设备地址设备地址（AB9XI）</view>
+				<view class="mach-info">{{machInfo.address}}（{{machInfo.id}}）</view>
 			</view>
 			<!-- 商品列表 -->
 			<view class="main">
@@ -88,18 +88,20 @@
 				>
 					<block v-for="(item, index) in list" :key="index">
 						<view class="category" :id="'cateId' + item.cateId">{{ item.title }}</view>
-						<view class="goods" v-for="(goods, idx) in item.list" :key="idx" @click="toDetailFn(goods.stock, goods.id)">
+						<view class="goods" v-for="(goods, idx) in item.list" :key="idx">
 							<image class="goods-img" lazy-load :src="goods.img"></image>
 							<view class="goods-info">
-								<view class="name">{{ goods.name }}</view>
+								<view class="goods-name">{{ goods.name }}</view>
 								<view class="price-btns">
 									<view class="price">￥{{ goods.price }}</view>
-									<view class="btns" :style="{display: goods.stock > 0 ? 'flex' : 'none'}">
-										<view v-show="goods.num >= 1" class="sub" @click.stop="addOrSubOnMenuFn(index, idx, 0)">-</view>
-										<view v-show="goods.num >= 1">{{ goods.num }}</view>
+									<view v-if="goods.stock > 0" class="btns">
+										<template v-if="goods.num > 0">
+											<view class="sub" @click.stop="addOrSubOnMenuFn(index, idx, 0)">-</view>
+											<view class="num">{{ goods.num }}</view>
+										</template>
 										<view class="add" @click.stop="addOrSubOnMenuFn(index, idx, 1)">+</view>
 									</view>
-									<view v-show="goods.stock < 1" class="sold-out">售罄</view>
+									<view v-else class="sold-out">售罄</view>
 								</view>
 							</view>
 						</view>
@@ -111,8 +113,8 @@
 			<uni-popup ref="cartListPopup" type="bottom" :safe-area="false">
 				<view class="cart-list-popup">
 					<view class="cart-head">
-						<view class="added">已选商品<text>（共x件）</text></view>
-						<view class="delAll">清空购物车</view>
+						<view class="added">已选商品<text>（共{{count}}件）</text></view>
+						<view class="delAll" @click="delAllFn">清空购物车</view>
 					</view>
 					<scroll-view class="cart-list" scroll-y>
 						<view
@@ -122,7 +124,7 @@
 						>
 							<view class="goods">
 								<view>{{item.name}}</view>
-								<view class="goods-price">{{item.price}}</view>
+								<view class="goods-price">¥{{item.price}}</view>
 							</view>
 							<view class="goods-num">
 								<uni-number-box v-model="item.num"></uni-number-box>
@@ -137,12 +139,15 @@
 				<view class="total" @click="switchCartFn">
 					<view class="cart">
 						<uni-icons type="cart" size="30" color="#e27b26"></uni-icons>
-						<view class="cart-num">1</view>
+						<view class="cart-num">{{count}}</view>
 					</view>
 					<view class="line"></view>
-					<view class="acount">请选择商品</view>
+					<view class="acount">
+						<text v-if="amount > 0">¥ {{amount.toFixed(2)}}</text>
+						<text v-else>请选择商品</text>
+					</view>
 				</view>
-				<view class="pay">支付</view>
+				<view class="pay" @click="buyFn">支付</view>
 			</view>
 		</view>
 	</view>
@@ -155,6 +160,7 @@
 	import { getQueryStr } from '@/utils/tools.js';
 	import { wxLogin, getUserInfo } from '@/api/user.js';
 	import { createWxScoreOrder, openDoor } from '@/api/order.js';
+	import { getGoodsListByMach, getCartList, updateCartList, clearCartList } from '@/api/cart.js';
 	const BNPL = false; // 先买后付：buy now, pay later
 	const showScanCode = ref(false);
 	const showAuthPhone = ref(false);
@@ -162,30 +168,31 @@
 	const openDoorPopup = ref('');
 	const showNotPass = ref(false);
 	const unBNPLpage = ref(false);
+	const machInfo = ref({});
 	const cartListPopup = ref('');
 	const list = ref([
-		{cateId: 1, title: '分类一', list: [
-			{id: 1, name: '测试商品1', price: 0.01, num: 0},
-			{id: 2, name: '测试商品2', price: 0.01, num: 0}
-		]},
-		{cateId: 2, title: '分类二', list: [
-			{id: 3, name: '测试商品3', price: 0.01, num: 0},
-			{id: 4, name: '测试商品4', price: 0.01, num: 0},
-			{id: 5, name: '测试商品5', price: 0.01, num: 0},
-			{id: 6, name: '测试商品6', price: 0.01, num: 0},
-			{id: 7, name: '测试商品7', price: 0.01, num: 0},
-			{id: 8, name: '测试商品8', price: 0.01, num: 0}
-		]},
-		{cateId: 3, title: '分类三', list: [
-			{id: 9, name: '测试商品9', price: 0.01, num: 0},
-			{id: 10, name: '测试商品10', price: 0.01, num: 0}
-		]}
+		// {cateId: 1, title: '分类一', list: [
+		// 	{id: 1, stock: 10, img: '/static/imgs/wxzff.png', name: '测试商品1', price: 0.01, num: 0},
+		// 	{id: 2, stock: 10, img: '/static/imgs/wxzff.png', name: '测试商品2测试商品2测试商品2测试商品2测试商品2测试商品2测试商品2', price: 0.01, num: 0}
+		// ]},
+		// {cateId: 2, title: '分类二', list: [
+		// 	{id: 3, stock: 10, img: '/static/imgs/wxzff.png', name: '测试商品3', price: 0.01, num: 0},
+		// 	{id: 4, stock: 0, img: '/static/imgs/wxzff.png', name: '测试商品4', price: 0.01, num: 0},
+		// 	{id: 5, stock: 1, img: '/static/imgs/wxzff.png', name: '测试商品5', price: 0.01, num: 0},
+		// 	{id: 6, stock: 10, img: '/static/imgs/wxzff.png', name: '测试商品6', price: 0.01, num: 0},
+		// 	{id: 7, stock: 2, img: '/static/imgs/wxzff.png', name: '测试商品7', price: 0.01, num: 0},
+		// 	{id: 8, stock: 10, img: '/static/imgs/wxzff.png', name: '测试商品8', price: 0.01, num: 0}
+		// ]},
+		// {cateId: 3, title: '分类三', list: [
+		// 	{id: 9, stock: 10, img: '/static/imgs/wxzff.png', name: '测试商品9', price: 0.01, num: 0},
+		// 	{id: 10, stock: 10, img: '/static/imgs/wxzff.png', name: '测试商品10', price: 0.01, num: 0}
+		// ]}
 	]);
 	const currCateIdx = ref(0);
 	const scrollTo = ref('cateId3');
-	const cartList = ref([
-		{id: 5, name: '测试商品5', price: 0.01, num: 1}
-	]);
+	const cartList = ref([]);
+	const count = ref(0);
+	const amount = ref(0);
 	let pageShowTimes = 0;
 	// 根据是否“先买后付”展示对应界面
 	const showByBNPL = () => {
@@ -194,6 +201,8 @@
 			openDoorPopup.value.open();
 		} else {
 			unBNPLpage.value = true;
+			// 获取商品分类、列表数据
+			getGoodsListFn();
 		}
 	}
 	// 监听“同意”隐私协议、授权手机号事件
@@ -394,7 +403,7 @@
 	// ---------- 非“先买后付（BNPL）” start-----------
 	// 屏幕宽度
 	let winWidth = 0;
-	// 监听滚动，做“防抖节流”处理
+	// 监听滚动
 	const scrollFn = e => {
 		// 判断是否已获取到屏幕宽度
 		if (winWidth) {
@@ -419,228 +428,155 @@
 		scrollTo.value = 'cateId' + id;
 		currCateIdx.value = cateIdx;
 	};
-	// // 去详情页
-	// toDetailFn(stock, id) {
-	// 	if (parseInt(stock) < 1) return false;
-	// 	uni.navigateTo({ url: "./detail?dishId=" + id });
-	// },
-	// // 加减商品（操作菜单列表）catIdx=>菜单一级分类列表索引值; idx=>菜单二级列表索引值; type=>1:加、0:减
-	// addOrSubOnMenuFn(catIdx, idx, type) {
-	// 	let mlist = this.menuList;
-	// 	// 判断是否是添加多规格菜品
-	// 	if (type == 1 && mlist[catIdx].list[idx].spec && mlist[catIdx].list[idx].spec.length > 0) {
-	// 		uni.navigateTo({
-	// 			url: "./detail?dishId=" + mlist[catIdx].list[idx].id,
-	// 		});
-	// 		return false;
-	// 	}
-	// 	// 判断是否是删除多规格菜品
-	// 	if (type == 0 && mlist[catIdx].list[idx].spec && mlist[catIdx].list[idx].spec.length > 0) {
-	// 		uni.showModal({
-	// 			content: this.$t("menu.delMultiTip"),
-	// 			showCancel: false,
-	// 			confirmText: this.$t("common.confirm")
-	// 		});
-	// 		return false;
-	// 	}
-	// 	this.addOrSubFn(type, mlist[catIdx].list[idx].id);
-	// },
-	// // 加减商品
-	// addOrSubFn(type, foodid, specid) {
-	// 	uni.showLoading({ mask: true });
-	// 	let url = type == 1 ? "Mpfoodcart/addFoodCart" : "Mpfoodcart/removeFoodCart";
-	// 	this.$http.Post(url, {
-	// 		...(this.orderparams || uni.getStorageSync('orderparams')),
-	// 		foodid: foodid,
-	// 		specid: specid || ""
-	// 	}).then(res => {
-	// 		uni.hideLoading();
-	// 		// console.log(res)
-	// 		if (res.code == 1) {
-	// 			if (this.menuList.length > 0) this.updateMenuListFn(foodid, type);
-	// 			this.sumOfCart = res.data.total;
-	// 			this.cartList = res.data.data;
-	// 			this.total = this.totalFn(res.data.data);
-	// 		} else {
-	// 			uni.showModal({
-	// 				content: res.msg,
-	// 				showCancel: false,
-	// 				confirmText: this.$t("common.confirm")
-	// 			})
-	// 		}
-	// 	}, err => {
-	// 		uni.hideLoading();
-	// 		uni.showToast({
-	// 			title: err,
-	// 			icon: "none",
-	// 			mask: true
-	// 		});
-	// 	});
-	// },
-	// // 更新菜单列表
-	// updateMenuListFn(dishId, addORsub) {
-	// 	let mlist = this.menuList;
-	// 	for (let i in mlist) {
-	// 		for (let j in mlist[i].list) {
-	// 			if (mlist[i].list[j].id == dishId) {
-	// 				if (addORsub == 1) mlist[i].list[j].num += 1;
-	// 				if (addORsub == 0) mlist[i].list[j].num -= 1;
-	// 			}
-	// 		}
-	// 	}
-	// 	this.menuList = mlist;
-	// },
-	// // 计算总价
-	// totalFn(list) {
-	// 	let t = 0;
-	// 	for (let i in list) {
-	// 		t += Number(list[i].price) * Number(list[i].num);
-	// 	}
-	// 	return t.toFixed(2);
-	// },
-	// // 清空购物车
-	// deleteAllFn() {
-	// 	uni.showModal({
-	// 		content: this.$t("menu.delAllTip"),
-	// 		success: (res) => {
-	// 			if (res.confirm) this.doDeleteAllFn();
-	// 		}
-	// 	})
-	// },
-	// doDeleteAllFn() {
-	// 	uni.showLoading({ mask: true });
-	// 	this.$http.Post("Mpfoodcart/removeAllFoodCart", {
-	// 		...(this.orderparams || uni.getStorageSync('orderparams'))
-	// 	}).then(res => {
-	// 		uni.hideLoading();
-	// 		// console.log(res)
-	// 		if (res.code == 1) {
-	// 			let mlist = this.menuList;
-	// 			for (let i in mlist) {
-	// 				for (let j in mlist[i].list) {
-	// 					mlist[i].list[j].num = 0;
-	// 				}
-	// 			}
-	// 			this.showCart = false;
-	// 			this.menuList = mlist;
-	// 			this.sumOfCart = 0;
-	// 			this.cartList = [];
-	// 			this.total = 0.0;
-	// 		} else {
-	// 			uni.showModal({
-	// 				content: res.msg,
-	// 				showCancel: false,
-	// 				confirmText: this.$t("common.confirm")
-	// 			})
-	// 		}
-	// 	}, err => {
-	// 		uni.hideLoading();
-	// 		uni.showToast({
-	// 			title: err,
-	// 			icon: "none",
-	// 			mask: true
-	// 		});
-	// 	});
-	// },
+	// 加减商品（操作菜单列表）cateIdx=>菜单一级分类列表索引值; idx=>菜单二级列表索引值; type=>1:加、0:减
+	const addOrSubOnMenuFn = (cateIdx, idx, type) => {
+		const arr = list.value;
+		if (type) {
+			arr[cateIdx].list[idx].num += 1;
+		} else {
+			arr[cateIdx].list[idx].num -= 1;
+		}
+		list.value = arr;
+		// 更新购物车数据
+		updateCartListFn(arr[cateIdx].list[idx], type);
+		// 更新购物车总量&总价
+		totalFn();
+	};
+	// 更新购物车数据
+	const updateCartListFn = (goods, type) => {
+		const arr = cartList.value;
+		const i = arr.findIndex(item => item.id === goods.id);
+		if (i > -1) {
+			// if (type) {
+			// 	arr[i].num += 1;
+			// } else {
+			// 	arr[i].num -= 1;
+			// }
+		} else {
+			arr.push(goods);
+		}
+		cartList.value = arr;
+	};
+	// 更新购物车总价
+	const totalFn = () => {
+		let t1 = 0, t2 = 0;
+		const arr = cartList.value;
+		for (let i in arr) {
+			t1 += arr[i].num;
+			t2 += arr[i].price * arr[i].num;
+		}
+		count.value = t1;
+		amount.value = t2;
+	};
+	// 清空购物车
+	const delAllFn = () => {
+		uni.showModal({
+			content: "确定要清空购物车内的商品吗？",
+			success: (res) => {
+				if (res.confirm) {
+					cartList.value = [];
+				}
+			}
+		})
+	};
 	// 展示/隐藏购物车列表
 	let showCartList = false;
 	const switchCartFn = () => {
 		showCartList ? cartListPopup.value.close() : cartListPopup.value.open();
 		showCartList = !showCartList;
 	};
-	// // 去下单
-	// toOrderFn() {
-	// 	uni.navigateTo({ url: "../order/submit" });
-	// 	// 检查是否可下单
-	// 	// uni.showLoading({ mask: true })
-	// 	// this.$http.Post("Mpfoodorder/checkFoodOrderStatus", {}).then(res => {
-	// 	// 	uni.hideLoading()
-	// 	// 	if (res.code == 1) {
-	// 	// 		uni.navigateTo({ url: '../order/submit' })
-	// 	// 	} else {
-	// 	// 		uni.showModal({
-	// 	// 			content: res.msg,
-	// 	// 			showCancel: false,
-	// 	// 			confirmText: this.$t('common.confirm')
-	// 	// 		})
-	// 	// 	}
-	// 	// }, err => {
-	// 	// 	uni.hideLoading()
-	// 	// 	uni.showToast({
-	// 	// 		title: err,
-	// 	// 		icon: 'none',
-	// 	// 		mask: true
-	// 	// 	})
-	// 	// })
-	// },
-	// // 获取菜单列表数据
-	// getMenuListFn() {
-	// 	this.$http.Post("Mpfood/getFoodList", {
-	// 		...(this.orderparams || uni.getStorageSync('orderparams'))
-	// 	}).then(res => {
-	// 		// console.log(res)
-	// 		if (res.code == 1) {
-	// 			this.menuList = res.data.Menu;
-	// 			// 获取购物车列表数据
-	// 			this.getCartListFn();
-	// 		} else {
-	// 			uni.hideLoading();
-	// 			uni.showModal({
-	// 				content: res.msg,
-	// 				showCancel: false,
-	// 				confirmText: this.$t("common.confirm")
-	// 			});
-	// 		}
-	// 	}, err => {
-	// 		uni.hideLoading();
-	// 		uni.showToast({
-	// 			title: err,
-	// 			icon: "none",
-	// 			mask: true
-	// 		});
-	// 	})
-	// },
-	// // 获取购物车列表数据
-	// getCartListFn() {
-	// 	this.$http.Post("Mpfoodcart/getFoodCart", {
-	// 		...(this.orderparams || uni.getStorageSync('orderparams'))
-	// 	}).then(res => {
-	// 		uni.hideLoading();
-	// 		// console.log(res)
-	// 		if (res.code == 1) {
-	// 			this.sumOfCart = res.data.total;
-	// 			this.cartList = res.data.data;
-	// 			this.total = this.totalFn(res.data.data);
-	// 			if (this.sumOfCart == 0) {
-	// 				this.showCart = false
-	// 			} else {
-	// 				// 更新菜单列表已加入购物车的菜品菜品数量
-	// 				for (let i in this.cartList) {
-	// 					for (let j in this.menuList) {
-	// 						for (let k in this.menuList[j].list) {
-	// 							if (this.menuList[j].list[k].id == this.cartList[i].id) {
-	// 								this.menuList[j].list[k].num = this.cartList[i].num
-	// 							}
-	// 						}
-	// 					}
-	// 				}
-	// 			}
-	// 		} else {
-	// 			uni.showModal({
-	// 				content: res.msg,
-	// 				showCancel: false,
-	// 				confirmText: this.$t("common.confirm")
-	// 			})
-	// 		}
-	// 	}, err => {
-	// 		uni.hideLoading();
-	// 		uni.showToast({
-	// 			title: err,
-	// 			icon: "none",
-	// 			mask: true
-	// 		});
-	// 	})
-	// },
+	// 支付
+	const buyFn = () => {
+		// 检查是否可下单
+		if (cartList.value.length < 1) return uni.showToast({
+			title: '请先添加商品到购物车',
+			icon: 'none',
+			mask: true
+		});
+		uni.showLoading({ mask: true });
+		buy().then(res => {
+			uni.hideLoading();
+			console.log(res)
+		}, errMsg => {
+			uni.hideLoading();
+			uni.showToast({
+				title: errMsg,
+				icon: 'none',
+				mask: true
+			});
+		});
+	};
+	// 获取购物车列表数据
+	const getCartListFn = () => {
+		getCartList().then(res => {
+			uni.hideLoading();
+			console.log(res)
+			if (res.data) {
+				
+			} else {
+				uni.showToast({
+					title: res?.errmsg || '获取购物车信息失败，请稍后重试~',
+					mask: true,
+					icon: "none"
+				});
+			}
+		}, errMsg => {
+			uni.hideLoading();
+			uni.showToast({
+				title: errMsg,
+				icon: "none",
+				mask: true
+			});
+		});
+	};
+	// 获取商品分类、列表数据
+	const getGoodsListFn = () => {
+		uni.showLoading({ mask: true });
+		getGoodsListByMach({
+			machineSerialNum: getApp().globalData.machId
+		}).then(res => {
+			// console.log(res)
+			if (res.data) {
+				// 柜子数据
+				machInfo.value = {
+					id: getApp().globalData.machId,
+					name: res.data.machineName,
+					address: res.data.machineAddress
+				};
+				// 商品数据
+				const obj = res.data.products || {};
+				let cateId = 0, arr = [];
+				for (let key in obj) {
+					for (let j in obj[key]) {
+						obj[key][j].num = 0;
+						obj[key][j].stock = 99; // 暂时无库存限制
+					}
+					arr.push({
+						cateId: cateId += 1,
+						title: key,
+						list: obj[key]
+					});
+				}
+				list.value = arr;
+				// 获取购物车列表数据
+				getCartListFn();
+			} else {
+				uni.hideLoading();
+				uni.showToast({
+					title: res?.errmsg || '获取商品列表失败，请稍后重试~',
+					mask: true,
+					icon: "none"
+				});
+			}
+		}, errMsg => {
+			uni.hideLoading();
+			uni.showToast({
+				title: errMsg,
+				icon: "none",
+				mask: true
+			});
+		});
+	};
 	// ---------- 非“先买后付（BNPL）” end-----------
 	// 监听页面加载
 	onLoad((options) => {
@@ -944,6 +880,54 @@
 					}
 					.goods-info {
 						flex: 1;
+						.goods-name {
+							width: 396rpx;
+							margin-bottom: 16rpx;
+							line-height: 36rpx;
+							max-height: 72rpx;
+							overflow: hidden;
+							text-overflow: ellipsis;
+							display: -webkit-box;
+							-webkit-line-clamp: 2;
+							-webkit-box-orient: vertical;
+						}
+						.price-btns {
+							display: flex;
+							justify-content: space-between;
+							align-items: center;
+							.price {
+								font-weight: bolder;
+								color: #e27b26;
+							}
+							.btns {
+								box-sizing: border-box;
+								padding: 0 20rpx;
+								display: flex;
+								justify-content: flex-end;
+								align-items: center;
+								.sub, .add {
+									width: 56rpx;
+									height: 56rpx;
+									background-color: #e27b26;
+									border-radius: 50%;
+									text-align: center;
+									line-height: 54rpx;
+									color: #fff;
+									font-size: 40rpx;
+								}
+								.num {
+									width: 68rpx;
+									text-align: center;
+									font-size: 32rpx;
+								}
+							}
+							.sold-out {
+								box-sizing: border-box;
+								padding-right: 20rpx;
+								color: #e10d26;
+								font-weight: bolder;
+							}
+						}
 					}
 				}
 			}
