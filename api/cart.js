@@ -18,7 +18,7 @@ export function getGoodsListByMach(data) {
  */
 export function getCartList(data) {
 	return request({
-		url: '',
+		url: '/Mini/getCartProductList',
 		method: 'post',
 		data
 	})
@@ -30,7 +30,7 @@ export function getCartList(data) {
  */
 export function clearCartList(data) {
 	return request({
-		url: '',
+		url: '/Mini/clearCartProduct',
 		method: 'post',
 		data
 	})
@@ -42,7 +42,7 @@ export function clearCartList(data) {
  */
 export function updateCartList(data) {
 	return request({
-		url: '',
+		url: '/Mini/addDelProductsToCart',
 		method: 'post',
 		data
 	})

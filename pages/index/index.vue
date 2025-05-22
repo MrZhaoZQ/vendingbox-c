@@ -88,8 +88,8 @@
 				>
 					<block v-for="(item, index) in list" :key="index">
 						<view class="category" :id="'cateId' + item.cateId">{{ item.title }}</view>
-						<view class="goods" v-for="(goods, idx) in item.list" :key="idx">
-							<image class="goods-img" lazy-load :src="goods.img"></image>
+						<view class="goods" v-for="(goods, idx) in item.list" :key="goods.productId">
+							<image class="goods-img" lazy-load :src="goods.imageUrl"></image>
 							<view class="goods-info">
 								<view class="goods-name">{{ goods.name }}</view>
 								<view class="price-btns">
@@ -119,7 +119,7 @@
 					<scroll-view class="cart-list" scroll-y>
 						<view
 							v-for="item in cartList"
-							:key="item.id"
+							:key="item.productId"
 							class="cart-item"
 						>
 							<view class="goods">
@@ -127,7 +127,7 @@
 								<view class="goods-price">¥{{item.price}}</view>
 							</view>
 							<view class="goods-num">
-								<uni-number-box v-model="item.num"></uni-number-box>
+								<uni-number-box @change="changeNumFn($event, item)" v-model="item.num"></uni-number-box>
 							</view>
 						</view>
 					</scroll-view>
@@ -159,7 +159,7 @@
 	import privacyPopup from '../../components/privacy.vue';
 	import { getQueryStr } from '@/utils/tools.js';
 	import { wxLogin, getUserInfo } from '@/api/user.js';
-	import { createWxScoreOrder, openDoor } from '@/api/order.js';
+	import { createWxScoreOrder, createUnBNPLorder, openDoor } from '@/api/order.js';
 	import { getGoodsListByMach, getCartList, updateCartList, clearCartList } from '@/api/cart.js';
 	const BNPL = false; // 先买后付：buy now, pay later
 	const showScanCode = ref(false);
@@ -172,20 +172,20 @@
 	const cartListPopup = ref('');
 	const list = ref([
 		// {cateId: 1, title: '分类一', list: [
-		// 	{id: 1, stock: 10, img: '/static/imgs/wxzff.png', name: '测试商品1', price: 0.01, num: 0},
-		// 	{id: 2, stock: 10, img: '/static/imgs/wxzff.png', name: '测试商品2测试商品2测试商品2测试商品2测试商品2测试商品2测试商品2', price: 0.01, num: 0}
+		// 	{productId: 1, stock: 10, imageUrl: '/static/imgs/wxzff.png', name: '测试商品1', price: 0.01, num: 0},
+		// 	{productId: 2, stock: 10, imageUrl: '/static/imgs/wxzff.png', name: '测试商品2测试商品2测试商品2测试商品2测试商品2测试商品2测试商品2', price: 0.01, num: 0}
 		// ]},
 		// {cateId: 2, title: '分类二', list: [
-		// 	{id: 3, stock: 10, img: '/static/imgs/wxzff.png', name: '测试商品3', price: 0.01, num: 0},
-		// 	{id: 4, stock: 0, img: '/static/imgs/wxzff.png', name: '测试商品4', price: 0.01, num: 0},
-		// 	{id: 5, stock: 1, img: '/static/imgs/wxzff.png', name: '测试商品5', price: 0.01, num: 0},
-		// 	{id: 6, stock: 10, img: '/static/imgs/wxzff.png', name: '测试商品6', price: 0.01, num: 0},
-		// 	{id: 7, stock: 2, img: '/static/imgs/wxzff.png', name: '测试商品7', price: 0.01, num: 0},
-		// 	{id: 8, stock: 10, img: '/static/imgs/wxzff.png', name: '测试商品8', price: 0.01, num: 0}
+		// 	{productId: 3, stock: 10, imageUrl: '/static/imgs/wxzff.png', name: '测试商品3', price: 0.01, num: 0},
+		// 	{productId: 4, stock: 0, imageUrl: '/static/imgs/wxzff.png', name: '测试商品4', price: 0.01, num: 0},
+		// 	{productId: 5, stock: 1, imageUrl: '/static/imgs/wxzff.png', name: '测试商品5', price: 0.01, num: 0},
+		// 	{productId: 6, stock: 10, imageUrl: '/static/imgs/wxzff.png', name: '测试商品6', price: 0.01, num: 0},
+		// 	{productId: 7, stock: 2, imageUrl: '/static/imgs/wxzff.png', name: '测试商品7', price: 0.01, num: 0},
+		// 	{productId: 8, stock: 10, imageUrl: '/static/imgs/wxzff.png', name: '测试商品8', price: 0.01, num: 0}
 		// ]},
 		// {cateId: 3, title: '分类三', list: [
-		// 	{id: 9, stock: 10, img: '/static/imgs/wxzff.png', name: '测试商品9', price: 0.01, num: 0},
-		// 	{id: 10, stock: 10, img: '/static/imgs/wxzff.png', name: '测试商品10', price: 0.01, num: 0}
+		// 	{productId: 9, stock: 10, imageUrl: '/static/imgs/wxzff.png', name: '测试商品9', price: 0.01, num: 0},
+		// 	{productId: 10, stock: 10, imageUrl: '/static/imgs/wxzff.png', name: '测试商品10', price: 0.01, num: 0}
 		// ]}
 	]);
 	const currCateIdx = ref(0);
@@ -194,20 +194,9 @@
 	const count = ref(0);
 	const amount = ref(0);
 	let pageShowTimes = 0;
-	// 根据是否“先买后付”展示对应界面
-	const showByBNPL = () => {
-		// 判断是否“先买后付”
-		if (BNPL) {
-			openDoorPopup.value.open();
-		} else {
-			unBNPLpage.value = true;
-			// 获取商品分类、列表数据
-			getGoodsListFn();
-		}
-	}
 	// 监听“同意”隐私协议、授权手机号事件
 	const agreeFn = () => {
-		showByBNPL();
+		openDoorPopup.value.open();
 	};
 	// 开门
 	const openDoorFn = (orderId) => {
@@ -333,9 +322,15 @@
 	// 获取用户信息
 	const getUserInfoFn = () => {
 		getUserInfo().then(res => {
+			// 判断是否 非 先买后付
+			if (!BNPL) {
+				unBNPLpage.value = true;
+				// 获取商品分类、列表数据
+				return getGoodsListFn();
+			}
 			// 判断是否已授权手机号
 			if (res?.phone) {
-				showByBNPL();
+				openDoorPopup.value.open();
 			} else {
 				showAuthPhone.value = true;
 			}
@@ -363,12 +358,18 @@
 							key: 'customerId',
 							data: res.data.customerId
 						});
+						// 判断是否 非 先买后付
+						if (!BNPL) {
+							unBNPLpage.value = true;
+							// 获取商品分类、列表数据
+							return getGoodsListFn();
+						}
 						// 判断是否已授权手机号
 						if (res.data?.phone) {
 							showAuthPhone.value = false;
 							// 判断是否有柜码
 							if (getApp().globalData.machId) {
-								showByBNPL();
+								openDoorPopup.value.open();
 							} else {
 								showScanCode.value = true;
 							}
@@ -438,26 +439,62 @@
 		}
 		list.value = arr;
 		// 更新购物车数据
-		updateCartListFn(arr[cateIdx].list[idx], type);
-		// 更新购物车总量&总价
-		totalFn();
+		updateCartListFn(arr[cateIdx].list[idx]);
+	};
+	// 购物车内加减商品商量
+	const changeNumFn = (e, goods) => {
+		// console.log(e, goods)
+		// 更新商品列表对应的商品数量
+		const arr = list.value;
+		for (let i in arr) {
+			for(let j in arr[i].list) {
+				if (arr[i].list[j].productId === goods.productId) {
+					arr[i].list[j].num = e
+				}
+			}
+		}
+		// 更新购物车数据
+		updateCartListFn(goods);
 	};
 	// 更新购物车数据
-	const updateCartListFn = (goods, type) => {
-		const arr = cartList.value;
-		const i = arr.findIndex(item => item.id === goods.id);
-		if (i > -1) {
-			// if (type) {
-			// 	arr[i].num += 1;
-			// } else {
-			// 	arr[i].num -= 1;
-			// }
-		} else {
-			arr.push(goods);
-		}
-		cartList.value = arr;
+	const updateCartListFn = (goods) => {
+		uni.showLoading({ mask: true });
+		updateCartList({
+			product: {
+				...goods,
+				count: goods.num
+			},
+			machineSerialNum: getApp().globalData.machId,
+			cartId: ''
+		}).then(res => {
+			// console.log(res);
+			uni.hideLoading();
+			if (res.data?.list) {
+				const arr = res.data.list;
+				for (let i in arr) {
+					arr[i].num = arr[i].count;
+					arr[i].img = arr[i].imageUrl;
+				}
+				cartList.value = arr;
+				// 更新购物车总量&总价
+				totalFn();
+			} else {
+				uni.showToast({
+					title: res?.errmsg || '获取购物车更新失败，请稍后重试~',
+					icon: 'none',
+					mask: true
+				});
+			}
+		}, errMsg => {
+			uni.hideLoading();
+			uni.showToast({
+				title: errMsg,
+				icon: 'none',
+				mask: true
+			});
+		});
 	};
-	// 更新购物车总价
+	// 更新购物车商品总量&总价
 	const totalFn = () => {
 		let t1 = 0, t2 = 0;
 		const arr = cartList.value;
@@ -474,7 +511,29 @@
 			content: "确定要清空购物车内的商品吗？",
 			success: (res) => {
 				if (res.confirm) {
-					cartList.value = [];
+					uni.showLoading({ mask: true });
+					clearCartList({
+						machineSerialNum: getApp().globalData.machId
+					}).then(() => {
+						// 清空商品列表数量
+						const arr = list.value;
+						for (let i in arr) {
+							for(let j in arr[i].list) {
+								arr[i].list[j].num = 0;
+							}
+						}
+						// 清空购物车数据
+						cartList.value = [];
+						totalFn();
+						uni.hideLoading();
+					}, errMsg => {
+						uni.hideLoading();
+						uni.showToast({
+							title: errMsg,
+							icon: 'none',
+							mask: true
+						});
+					});
 				}
 			}
 		})
@@ -494,7 +553,7 @@
 			mask: true
 		});
 		uni.showLoading({ mask: true });
-		buy().then(res => {
+		createUnBNPLorder().then(res => {
 			uni.hideLoading();
 			console.log(res)
 		}, errMsg => {
@@ -508,11 +567,29 @@
 	};
 	// 获取购物车列表数据
 	const getCartListFn = () => {
-		getCartList().then(res => {
+		getCartList({
+			machineSerialNum: getApp().globalData.machId
+		}).then(res => {
 			uni.hideLoading();
-			console.log(res)
-			if (res.data) {
-				
+			if (res.data?.list) {
+				// 合并购物车内相同ID的商品
+				const arr1 = res.data.list || [];
+				const arr2 = list.value;
+				cartList.value = arr1;
+				// 更新商品列表已加入购物车的商品数量
+				for (let i in arr1) {
+					arr1[i].num = arr1[i].count;
+					for (let j in arr2) {
+						for (let k in arr2[j].list) {
+							if (arr2[j].list[k].productId == arr1[i].productId) {
+								arr2[j].list[k].num = arr1[i].num;
+								arr2[j].list[k].count = arr1[i].num;
+							}
+						}
+					}
+				}
+				// 更新购物车商品的总量&总价
+				totalFn();
 			} else {
 				uni.showToast({
 					title: res?.errmsg || '获取购物车信息失败，请稍后重试~',

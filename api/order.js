@@ -13,6 +13,18 @@ export function createWxScoreOrder(data) {
 }
 
 /**
+ * @description 创建普通（"非"先买后付[BNPL]）订单
+ * @param {*} data 
+ */
+export function createUnBNPLorder(data) {
+	return request({
+		url: '/Mini/createOrder',
+		method: 'post',
+		data
+	})
+}
+
+/**
  * @description 打开柜门
  * @param {*} data 
  */
