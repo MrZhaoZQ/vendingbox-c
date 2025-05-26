@@ -45,7 +45,7 @@
 	}, {
 		"path": "pages/mine/privacy_policy",
 		"style": {
-			"navigationBarTitleText": "隐私保护指引"
+			"navigationBarTitleText": "用户协议"
 		}
 	}, {
 		"path": "pages/mine/after_sale",

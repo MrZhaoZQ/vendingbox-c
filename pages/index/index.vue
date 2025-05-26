@@ -4,7 +4,7 @@
 		<view class="scanCode" v-if="showScanCode">
 			<image class="kv" src="../../static/imgs/kv.jpg" mode="widthFix"></image>
 			<view class="scan" @click="scanFn">扫描货柜</view>
-			<view class="payscore">
+			<view v-if="!unBNPLpage" class="payscore">
 				<image src="../../static/imgs/wxzff.png" mode="widthFix"></image>
 				<text>微信支付分｜550分及以上优享</text>
 			</view>
@@ -60,7 +60,7 @@
 		</view>
 		
 		<!-- 非“先买后付”的购买页面：货柜信息 & 商品列表 & 购物车 -->
-		<view v-show="unBNPLpage" class="un-BNPL-page">
+		<view v-if="unBNPLpage && !showScanCode" class="un-BNPL-page">
 			<!-- 顶部 -->
 			<view class="header">
 				<view class="mach-name">{{machInfo.name}}</view>
@@ -360,9 +360,14 @@
 						});
 						// 判断是否 非 先买后付
 						if (!BNPL) {
-							unBNPLpage.value = true;
-							// 获取商品分类、列表数据
-							return getGoodsListFn();
+							// 判断是否有柜码
+							if (getApp().globalData.machId) {
+								unBNPLpage.value = true;
+								// 获取商品分类、列表数据
+								return getGoodsListFn();
+							} else {
+								showScanCode.value = true;
+							}
 						}
 						// 判断是否已授权手机号
 						if (res.data?.phone) {
@@ -553,9 +558,45 @@
 			mask: true
 		});
 		uni.showLoading({ mask: true });
-		createUnBNPLorder().then(res => {
-			uni.hideLoading();
-			console.log(res)
+		createUnBNPLorder({
+			machineSerialNum: getApp().globalData.machId
+		}).then(res => {
+			if (res.data) {
+				// 微信小程序支付
+				// #ifdef MP-WEIXIN
+				wx.requestPayment({
+					timeStamp: res.data.timeStamp,
+					nonceStr: res.data.nonceStr,
+					package: res.data.package,
+					signType: res.data.signType,
+					paySign: res.data.paySign,
+					success: succ => {
+						console.log(succ)
+						uni.hideLoading();
+						uni.navigateTo({
+							url: '/pages/order/detail?orderId=' + res.data.outOrderId
+						});
+					},
+					fail: ({errMsg}) => {
+						uni.hideLoading();
+						// console.log(errMsg)
+						if (errMsg && errMsg.indexOf('cancel') < 0) {
+							uni.showToast({
+								title: '支付失败，请稍后重试',
+								mask: true,
+								icon: "none"
+							});
+						}
+					}
+				});
+				// #endif
+			} else {
+				uni.showToast({
+					title: res?.errmsg || '下单失败，请稍后重试~',
+					mask: true,
+					icon: "none"
+				});
+			}
 		}, errMsg => {
 			uni.hideLoading();
 			uni.showToast({
@@ -672,6 +713,10 @@
 				// 获取用户信息
 				getUserInfoFn();
 			} else {
+				// 判断是否 非 先买后付 且 有柜码
+				if (!BNPL) {
+					unBNPLpage.value = true;
+				}
 				showScanCode.value = true;
 			}
 		} else {
@@ -693,20 +738,26 @@
 	// 监听页面显示，页面每次出现在屏幕上都触发
 	onShow(() => {
 		pageShowTimes += 1;
-		// if (pageShowTimes > 1) {
-		// 	// 判断是否已登录
-		// 	if (uni.getStorageSync('customerId')) {
-		// 		// 判断当前是否有柜码
-		// 		if (getApp().globalData.machId) {
-		// 			// 获取用户信息
-		// 			getUserInfoFn();
-		// 		} else {
-		// 			showScanCode.value = true;
-		// 		}
-		// 	} else {
-		// 		mpLogin();
-		// 	}
-		// }
+		if (pageShowTimes > 1) {
+			// // 判断是否已登录
+			// if (uni.getStorageSync('customerId')) {
+			// 	// 判断当前是否有柜码
+			// 	if (getApp().globalData.machId) {
+			// 		// 获取用户信息
+			// 		getUserInfoFn();
+			// 	} else {
+			// 		showScanCode.value = true;
+			// 	}
+			// } else {
+			// 	mpLogin();
+			// }
+			// 判断是否 非 先买后付 且 有柜码
+			if (!BNPL && getApp().globalData.machId) {
+				unBNPLpage.value = true;
+				// 获取商品分类、列表数据
+				getGoodsListFn();
+			}
+		}
 		// 判断是否处于开门状态，若是=>则跳转至开门成功的页面，若否=>则...
 		
 	});

@@ -18,7 +18,19 @@ export function createWxScoreOrder(data) {
  */
 export function createUnBNPLorder(data) {
 	return request({
-		url: '/Mini/createOrder',
+		url: '/Mini/payOrder',
+		method: 'post',
+		data
+	})
+}
+
+/**
+ * @description 继续支付 非先买后付[BNPL]的待支付订单
+ * @param {*} data 
+ */
+export function continueToPay(data) {
+	return request({
+		url: '/Mini/continuePayOrder',
 		method: 'post',
 		data
 	})

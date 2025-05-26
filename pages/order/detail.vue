@@ -43,8 +43,8 @@
 				<view class="infoItem">
 					<view>支付方式</view>
 					<view class="flex-fe-c">
-						<image class="payscore" src="../../static/imgs/wxzff.png" mode="widthFix"></image>
-						<text>微信支付分先购后付</text>
+						<image v-if="orderInfo.payment_Method == 2" class="payscore" src="../../static/imgs/wxzff.png" mode="widthFix"></image>
+						<text>{{orderInfo.payType}}</text>
 					</view>
 				</view>
 				<view class="infoItem">
@@ -69,6 +69,12 @@
 			</view>
 		</view>
 		
+		<!-- 待支付订单-继续支付 -->
+		<view v-if="orderInfo.payment_Method == 1 && orderInfo.payStatus == 0"
+			class="continue2pay"
+			@click="continue2payFn"
+		>继续支付</view>
+		
 		<!-- 刷新订单状态 -->
 		<view v-if="pendingSettlement" class="refresh" @click="refreshFn">下拉页面或点击按钮刷新订单状态</view>
 		
@@ -86,7 +92,7 @@
 <script setup>
 	import { ref } from 'vue';
 	import { onLoad, onPullDownRefresh } from '@dcloudio/uni-app';
-	import { getOrderDetail } from '@/api/order.js';
+	import { getOrderDetail, continueToPay } from '@/api/order.js';
 	let orderId = "";
 	const orderInfo = ref({
 		order_Details: []
@@ -110,6 +116,10 @@
 			if (res.errcode == 0 && res.data) {
 				let detail = res.data;
 				detail.orderStatus = detail.status == 0 ? '服务进行中' : '服务结束';
+				detail.payType = {
+					"1": "微信支付",
+					"2": " 微信支付分先购后付"
+				}[detail.payment_Method];
 				switch (detail.payStatus) {
 					case 0:
 						detail.payStatusTxt = "交易中";
@@ -175,6 +185,56 @@
 	const contactFn = (phoneNo) => {
 		uni.makePhoneCall({
 			phoneNumber: phoneNo
+		});
+	};
+	// 继续支付 非先买后付[BNPL]的待支付订单
+	const continue2payFn = () => {
+		uni.hideLoading();
+		continueToPay({ orderId }).then(res => {
+			// console.log(res)
+			if (res.data) {
+				// 微信小程序支付
+				// #ifdef MP-WEIXIN
+				wx.requestPayment({
+					timeStamp: res.data.timeStamp,
+					nonceStr: res.data.nonceStr,
+					package: res.data.package,
+					signType: res.data.signType,
+					paySign: res.data.paySign,
+					success: succ => {
+						console.log(succ)
+						uni.hideLoading();
+						uni.redirectTo({
+							url: '/pages/order/detail?orderId=' + res.data.outOrderId
+						});
+					},
+					fail: ({errMsg}) => {
+						uni.hideLoading();
+						// console.log(errMsg)
+						if (errMsg && errMsg.indexOf('cancel') < 0) {
+							uni.showToast({
+								title: '支付失败，请稍后重试',
+								mask: true,
+								icon: "none"
+							});
+						}
+					}
+				});
+				// #endif
+			} else {
+				uni.showToast({
+					title: res?.errmsg || '继续支付失败，请稍后重试~',
+					mask: true,
+					icon: "none"
+				});
+			}
+		}, errMsg => {
+			uni.hideLoading();
+			uni.showToast({
+				title: errMsg || '继续支付失败，请稍后重试~',
+				mask: true,
+				icon: "none"
+			});
 		});
 	};
 	// 刷新页面
@@ -343,7 +403,7 @@
 		}
 	}
 	
-	.refresh, .appeal {
+	.continue2pay, .refresh, .appeal {
 		margin: 60rpx auto;
 		width: 100%;
 		height: 86rpx;
@@ -352,7 +412,7 @@
 		text-align: center;
 		line-height: 86rpx;
 	}
-	.refresh {
+	.continue2pay, .refresh {
 		border: 2rpx #e27b26 solid;
 		color: #e27b26;
 	}

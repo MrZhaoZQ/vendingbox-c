@@ -30,8 +30,8 @@
 					<view class="infoItem">
 						<view>支付方式</view>
 						<view class="flex-fe-c">
-							<image class="payscore" src="../../static/imgs/wxzff.png" mode="widthFix"></image>
-							<text>微信支付分先购后付</text>
+							<image v-if="item.payment_Method == 2" class="payscore" src="../../static/imgs/wxzff.png" mode="widthFix"></image>
+							<text>{{item.payType}}</text>
 						</view>
 					</view>
 					<view class="infoItem">
@@ -70,6 +70,10 @@
 	import { getOrderList } from '@/api/order.js';
 	let pageNum = 1, pageSize = 10, requesting = false, more = true;
 	const list = ref([]);
+	const payTypeList = {
+		"1": "微信支付",
+		"2": " 微信支付分先购后付"
+	};
 	// 获取订单列表
 	const getOrderListFn = (refreshing) => {
 		if (requesting) return;
@@ -97,6 +101,7 @@
 				let arr = res.data || [];
 				for (let i in arr) {
 					arr[i].orderStatus = arr[i].status == 0 ? '服务进行中' : '服务结束';
+					arr[i].payType = payTypeList[arr[i].payment_Method];
 					switch (arr[i].payStatus) {
 						case 0:
 							arr[i].payStatusTxt = "交易中";

@@ -19,6 +19,13 @@
 				</view>
 				<uni-icons type="right" color="#b6b6b6"></uni-icons>
 			</view>
+			<button class="item contact" open-type="contact">
+				<view class="left">
+					<uni-icons type="chat"></uni-icons>
+					<text class="txt">联系客服</text>
+				</view>
+				<uni-icons type="right" color="#b6b6b6"></uni-icons>
+			</button>
 			<button class="item share" open-type="share">
 				<view class="left">
 					<uni-icons type="redo"></uni-icons>
@@ -26,13 +33,20 @@
 				</view>
 				<uni-icons type="right" color="#b6b6b6"></uni-icons>
 			</button>
-			<view class="item" @click="toAfterSaleFn">
+			<view class="item" @click="toPolicyFn">
 				<view class="left">
 					<uni-icons type="info"></uni-icons>
-					<text class="txt">关于售后</text>
+					<text class="txt">用户协议</text>
 				</view>
 				<uni-icons type="right" color="#b6b6b6"></uni-icons>
 			</view>
+			<!-- <view class="item" @click="toAfterSaleFn">
+				<view class="left">
+					<uni-icons type="help"></uni-icons>
+					<text class="txt">关于售后</text>
+				</view>
+				<uni-icons type="right" color="#b6b6b6"></uni-icons>
+			</view> -->
 		</view>
 	</view>
 </template>
@@ -43,6 +57,11 @@
 	const toMyOrderListFn = () => {
 		uni.switchTab({
 			url: '/pages/order/list',
+		});
+	};
+	const toPolicyFn = () => {
+		uni.navigateTo({
+			url: '/pages/mine/privacy_policy',
 		});
 	};
 	// 查看关于售后
