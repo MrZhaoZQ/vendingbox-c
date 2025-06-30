@@ -1,5 +1,5 @@
 // 配置域名
-const BASE_URL = "https://boxmp.banary.cn:40900/api"
+const BASE_URL = "https://boxmp.banary.cn:40903/api"
 const LOGIN_URLS = ["/Mini/Login"]
 
 /**

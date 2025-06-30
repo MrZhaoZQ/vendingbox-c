@@ -176,7 +176,7 @@
 				const machId = getQueryStr(result, 'machId');
 				// 根据scanType和result的规则特性判断需要执行的操作
 				// 二维码：QR_CODE即普通二维码、WX_CODE即小程序码
-				if (scanType == 'QR_CODE' && result.startsWith('https://vip.banary.cn:40902/mp.html?machId=') && machId) {
+				if (scanType == 'QR_CODE' && result.startsWith('https://vip.banary.cn:40902/') && machId) {
 					// 柜码 则 reLaunch
 					uni.reLaunch({
 						url: '/pages/index/index?machId=' + machId
@@ -309,8 +309,6 @@
 		// 		mpLogin();
 		// 	}
 		// }
-		// 判断是否处于开门状态，若是=>则跳转至开门成功的页面，若否=>则...
-		
 	});
 </script>
 
