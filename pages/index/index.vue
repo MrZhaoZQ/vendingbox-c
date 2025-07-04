@@ -22,9 +22,10 @@
 		<!-- 隐私协议弹框 -->
 		<privacyPopup v-model="showPrivacy" @agree="agreeFn"></privacyPopup>
 		
-		<!-- 确认开门弹框 -->
+		<!-- 确认开门 -->
 		<uni-popup ref="openDoorPopup" :mask-click="false">
-			<view class="agreement">
+			<!-- 开门弹框 -->
+			<!-- <view class="agreement">
 				<text class="title">本柜已开启AI智能识别\n多拿多扣，少拿自动退</text>
 				<image class="ai-camera" src="../../static/imgs/ai_camera.png" mode="widthFix"></image>
 				<text class="subtitle">请遵守智能货柜使用约定\n以下行为将面临违约扣款</text>
@@ -46,6 +47,32 @@
 				<view class="payscore">
 					<image src="../../static/imgs/wxzff.png" mode="widthFix"></image>
 					<text>微信支付分｜550分及以上优享</text>
+				</view>
+			</view> -->
+			
+			<!-- 开门界面 -->
+			<view class="open-door">
+				<scroll-view scroll-x enable-flex class="tab-list">
+					<view
+						v-for="(tab, idx) in tabList"
+						:key="idx"
+						:class="['tab', tabIdx == idx ? 'active' : '']"
+						@click="tabSwitchFn(idx)"
+					>{{ tab }}</view>
+				</scroll-view>
+				<scroll-view scroll-y enable-flex class="prod-list">
+					<view v-for="item in prodList[tabIdx]" class="prod-item" :key="item.productId">
+						<image class="prod-img" lazy-load :src="item.imageUrl" mode="widthFix"></image>
+						<view class="prod-name">{{ item.name }}</view>
+						<view class="prod-price">￥{{ item.price }}</view>
+					</view>
+				</scroll-view>
+				<view class="fixed">
+					<view class="open" @click="openNowFn">立即开门</view>
+					<view class="payscore">
+						<image src="../../static/imgs/wxzff.png" mode="widthFix"></image>
+						<text>微信支付分｜550分及以上优享</text>
+					</view>
 				</view>
 			</view>
 		</uni-popup>
@@ -161,11 +188,14 @@
 	import { wxLogin, getUserInfo } from '@/api/user.js';
 	import { createWxScoreOrder, createUnBNPLorder, openDoor } from '@/api/order.js';
 	import { getGoodsListByMach, getCartList, updateCartList, clearCartList } from '@/api/cart.js';
-	const BNPL = false; // 先买后付：buy now, pay later
+	const BNPL = true; // 先买后付：buy now, pay later
 	const showScanCode = ref(false);
 	const showAuthPhone = ref(false);
 	const showPrivacy = ref(false);
 	const openDoorPopup = ref('');
+	const tabList = ref([]); // tabs列表
+	const tabIdx = ref(0); // 当前tab的索引值
+	const prodList = ref([]); // tabs列表对应的商品列表
 	const showNotPass = ref(false);
 	const unBNPLpage = ref(false);
 	const machInfo = ref({});
@@ -696,6 +726,39 @@
 		});
 	};
 	// ---------- 非“先买后付（BNPL）” end-----------
+	// tabs点击切换
+	const tabSwitchFn = (index) => {
+		tabIdx.value = index;
+	};
+	// 获取商品tabs列表
+	const getProdListFn = () => {
+		uni.showLoading({ mask: true });
+		getGoodsListByMach({
+			machineSerialNum: getApp().globalData.machId
+		}).then(res => {
+			// console.log(res)
+			uni.hideLoading();
+			if (res.data) {
+				// 商品数据处理
+				const obj = res.data.products || {}, arr = Object.values(obj);
+				tabList.value = ["全部", ...Object.keys(obj)];
+				prodList.value = [arr.flat(), ...arr];
+			} else {
+				uni.showToast({
+					title: res?.errmsg || '获取商品数据失败，请稍后重试~',
+					mask: true,
+					icon: "none"
+				});
+			}
+		}, errMsg => {
+			uni.hideLoading();
+			uni.showToast({
+				title: errMsg,
+				icon: "none",
+				mask: true
+			});
+		});
+	};
 	// 监听页面加载
 	onLoad((options) => {
 		// console.log('onLoad: ', options);
@@ -712,6 +775,8 @@
 			if (getApp().globalData.machId) {
 				// 获取用户信息
 				getUserInfoFn();
+				// 获取商品tabs及对应tab的商品列表
+				getProdListFn();
 			} else {
 				// 判断是否 非 先买后付 且 有柜码
 				if (!BNPL) {
@@ -897,6 +962,93 @@
 			text-align: center;
 			line-height: 68rpx;
 			color: #fff;
+		}
+	}
+	
+	.open-door {
+		width: 750rpx;
+		height: 100vh;
+		background-color: #f6f6f6;
+		overflow: hidden;
+		.tab-list {
+			width: 100%;
+			height: 82rpx;
+			background-color: #fff;
+			display: flex;
+			.tab {
+				width: auto;
+				height: 46rpx;
+				margin: 18rpx 20rpx;
+				line-height: 46rpx;
+				white-space: nowrap;
+				&:last-child {
+					padding-right: 20rpx;
+				}
+				&.active {
+					font-weight: bolder;
+					color: #e27b26;
+					border-bottom: 4rpx #e27b26 solid;
+				}
+			}
+		}
+		.prod-list {
+			width: 100%;
+			height: calc(100vh - 262rpx); // 100vh - 82rpx - 180rpx
+			box-sizing: border-box;
+			padding: 20rpx 15rpx 180rpx;
+			display: flex;
+			flex-wrap: wrap;
+			.prod-item {
+				width: 220rpx;
+				height: 320rpx;
+				margin: 0 10rpx 20rpx;
+				border-radius: 10rpx;
+				overflow: hidden;
+				background-color: #fff;
+				text-align: center;
+				.prod-img {
+					width: 220rpx;
+					height: auto;
+				}
+				.prod-name, .prod-price {
+					width: 100%;
+					height: 46rpx;
+					line-height: 46rpx;
+					box-sizing: border-box;
+					padding: 0 10rpx;
+				}
+				.prod-name {
+					overflow: hidden;
+					white-space: nowrap;
+					text-overflow: ellipsis;
+				}
+				.prod-price {
+					color: #e27b26;
+					font-weight: bolder;
+				}
+			}
+		}
+		.fixed {
+			width: 100%;
+			height: 180rpx;
+			position: fixed;
+			left: 0;
+			bottom: 0;
+			background-color: #fff;
+			display: flex;
+			flex-direction: column;
+			justify-content: center;
+			align-items: center;
+			.open {
+				width: 320rpx;
+				height: 68rpx;
+				margin-bottom: 10rpx;
+				border-radius: 34rpx;
+				background-color: #26ab28;
+				text-align: center;
+				line-height: 68rpx;
+				color: #fff;
+			}
 		}
 	}
 	
