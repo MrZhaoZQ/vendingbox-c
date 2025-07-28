@@ -2,7 +2,7 @@
 	"pages": [{
 		"path": "pages/index/index",
 		"style": {
-			"navigationBarTitleText": "",
+			"navigationBarTitleText": "金豪力科技",
 			"navigationBarBackgroundColor": "#e27b26",
 			"backgroundColorTop": "#e27b26",
 			"navigationBarTextStyle": "white"

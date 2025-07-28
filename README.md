@@ -4,8 +4,8 @@ English | [简体中文](./README-zh.md)
 
 ## Notice for myself
 ## WeChat Mini Program
-"appid" : "wxe64d62209d0d9b4f" => BASE_URL = "https://boxmp.banary.cn:40903/api"
-"appid" : "wx122cd6d053e1cf56" => BASE_URL = "https://boxmp.banary.cn:40900/api"
+"appid/潮链" : "wxe64d62209d0d9b4f" => BASE_URL = "https://boxmp.banary.cn:40903/api"
+"appid/金豪力" : "wx122cd6d053e1cf56" => BASE_URL = "https://boxmp.banary.cn:40900/api"
 
 > A Uniapp project for a client-side vending box
 
