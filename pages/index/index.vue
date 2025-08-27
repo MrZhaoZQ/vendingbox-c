@@ -381,7 +381,7 @@
 		uni.login({
 			success: ({code}) => {
 				wxLogin({code}).then(res => {
-					// console.log(res)
+					// console.log(res, BNPL)
 					if (res.errcode == 0 && res.data?.customerId) {
 						// 存储用户标识
 						uni.setStorage({
@@ -398,6 +398,9 @@
 							} else {
 								showScanCode.value = true;
 							}
+						} else {
+							// 获取商品tabs及对应tab的商品列表
+							getProdListFn();
 						}
 						// 判断是否已授权手机号
 						if (res.data?.phone) {
