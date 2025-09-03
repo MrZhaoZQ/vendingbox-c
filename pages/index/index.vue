@@ -60,11 +60,13 @@
 						@click="tabSwitchFn(idx)"
 					>{{ tab }}</view>
 				</scroll-view>
-				<scroll-view scroll-y enable-flex class="prod-list">
-					<view v-for="item in prodList[tabIdx]" class="prod-item" :key="item.productId">
-						<image class="prod-img" lazy-load :src="item.imageUrl" mode="widthFix"></image>
-						<view class="prod-name">{{ item.name }}</view>
-						<view class="prod-price">￥{{ item.price }}</view>
+				<scroll-view scroll-y enable-flex class="prod-list-scroll">
+					<view class="prod-list">
+						<view v-for="item in prodList[tabIdx]" class="prod-item" :key="item.productId">
+							<image class="prod-img" lazy-load :src="item.imageUrl" mode="widthFix"></image>
+							<view class="prod-name">{{ item.name }}</view>
+							<view class="prod-price">￥{{ item.price }}</view>
+						</view>
 					</view>
 				</scroll-view>
 				<view class="fixed">
@@ -994,12 +996,18 @@
 				}
 			}
 		}
-		.prod-list {
+		.prod-list-scroll {
 			width: 100%;
 			height: calc(100vh - 262rpx); // 100vh - 82rpx - 180rpx
 			box-sizing: border-box;
-			padding: 20rpx 15rpx 180rpx;
+			padding: 20rpx 15rpx;
+		}
+		.prod-list {
+			width: 100%;
+			height: auto;
 			display: flex;
+			justify-content: flex-start;
+			align-items: flex-start;
 			flex-wrap: wrap;
 			.prod-item {
 				width: 220rpx;
@@ -1012,6 +1020,7 @@
 				.prod-img {
 					width: 220rpx;
 					height: auto;
+					max-height: 220rpx;
 				}
 				.prod-name, .prod-price {
 					width: 100%;
